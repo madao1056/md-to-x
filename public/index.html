@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MD → X Articles</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #141414;
+    --surface2: #1c1c1c;
+    --border: #2a2a2a;
+    --text: #e4e4e4;
+    --text2: #888;
+    --accent: #3b82f6;
+    --accent-hover: #2563eb;
+    --success: #22c55e;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  header h1 {
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  header h1 span {
+    color: var(--text2);
+    font-weight: 400;
+  }
+
+  .actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .status {
+    font-size: 13px;
+    color: var(--text2);
+    margin-right: 8px;
+    transition: color 0.2s;
+  }
+
+  .status.ok { color: var(--success); }
+
+  button {
+    padding: 8px 20px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  button:hover {
+    background: var(--border);
+  }
+
+  button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  button.primary:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+  }
+
+  button.primary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  main {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .pane + .pane {
+    border-left: 1px solid var(--border);
+  }
+
+  .pane-header {
+    padding: 12px 20px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  textarea {
+    flex: 1;
+    padding: 20px;
+    background: var(--surface);
+    border: none;
+    color: var(--text);
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    resize: none;
+    outline: none;
+    tab-size: 2;
+  }
+
+  textarea::placeholder {
+    color: #444;
+  }
+
+  .preview {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    background: var(--surface);
+    font-size: 15px;
+    line-height: 1.8;
+  }
+
+  .preview h1 { font-size: 24px; font-weight: 700; margin: 24px 0 12px; }
+  .preview h2 { font-size: 20px; font-weight: 700; margin: 24px 0 10px; }
+  .preview h3 { font-size: 20px; font-weight: 700; margin: 24px 0 10px; }
+  .preview p { margin: 0 0 12px; }
+  .preview strong { font-weight: 700; }
+  .preview a { color: var(--accent); text-decoration: none; }
+  .preview a:hover { text-decoration: underline; }
+  .preview hr { border: none; border-top: 1px solid #555; margin: 20px 0; }
+  .preview ul, .preview ol { padding-left: 24px; margin: 0 0 12px; }
+  .preview li { margin: 4px 0; }
+  .preview code {
+    background: var(--surface2);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'SF Mono', monospace;
+    font-size: 13px;
+  }
+  .preview pre {
+    background: var(--surface2);
+    padding: 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 0 0 12px;
+  }
+  .preview pre code { background: none; padding: 0; }
+  .preview blockquote {
+    border-left: 3px solid var(--border);
+    padding-left: 16px;
+    color: var(--text2);
+    margin: 0 0 12px;
+  }
+
+  .drop-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(59, 130, 246, 0.08);
+    border: 2px dashed var(--accent);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: var(--accent);
+    font-weight: 600;
+    pointer-events: none;
+  }
+
+  .drop-overlay.active { display: flex; }
+
+  @media (max-width: 768px) {
+    main { flex-direction: column; }
+    .pane + .pane { border-left: none; border-top: 1px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+
+<div class="drop-overlay" id="dropOverlay">.md ファイルをドロップ</div>
+
+<header>
+  <h1>MD → X Articles <span>Clipboard</span></h1>
+  <div class="actions">
+    <span class="status" id="status"></span>
+    <button onclick="clearAll()">クリア</button>
+    <button class="primary" id="copyBtn" onclick="copyToClipboard()" disabled>コピー</button>
+  </div>
+</header>
+
+<main>
+  <div class="pane">
+    <div class="pane-header">Markdown</div>
+    <textarea id="editor" placeholder="Markdownをペースト、またはファイルをドラッグ＆ドロップ...&#10;&#10;Cmd+Enter でコピー" spellcheck="false"></textarea>
+  </div>
+  <div class="pane">
+    <div class="pane-header">Preview</div>
+    <div class="preview" id="preview"></div>
+  </div>
+</main>
+
+<script>
+  const editor = document.getElementById('editor');
+  const preview = document.getElementById('preview');
+  const copyBtn = document.getElementById('copyBtn');
+  const statusEl = document.getElementById('status');
+  const dropOverlay = document.getElementById('dropOverlay');
+
+  // X Articles (Draft.js) 互換カスタムレンダラー
+  const renderer = new marked.Renderer();
+
+  // h3〜h6 → h2 に統一（X Articles は h1/h2 のみ対応）
+  renderer.heading = function({ tokens, depth }) {
+    const text = this.parser.parseInline(tokens);
+    const tag = depth <= 1 ? 'h1' : 'h2';
+    return '<' + tag + '>' + text + '</' + tag + '>\n';
+  };
+
+  // <hr> → テキスト目印（Draft.js は <hr> ペースト非対応）
+  renderer.hr = function() {
+    return '<p>---</p>\n';
+  };
+
+  // コードブロック → <pre><code> のまま出力（X Articlesが認識する形式）
+  renderer.code = function({ text }) {
+    const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return '<pre><code>' + escaped + '</code></pre>\n';
+  };
+
+  // インラインコード → プレーンテキスト（X Articles非対応）
+  renderer.codespan = function({ text }) {
+    return text;
+  };
+
+  // テーブル → テキスト表現（Draft.js はテーブルペースト非対応）
+  renderer.table = function({ header, rows }) {
+    let result = '<p>';
+    const headerCells = header.map(function(cell) {
+      return cell.tokens.map(function(t) { return t.text || ''; }).join('');
+    });
+    result += headerCells.join(' | ');
+    result += '</p>\n';
+    for (const row of rows) {
+      const cells = row.map(function(cell) {
+        return cell.tokens.map(function(t) { return t.text || ''; }).join('');
+      });
+      result += '<p>' + cells.join(' | ') + '</p>\n';
+    }
+    return result;
+  };
+
+  marked.setOptions({ gfm: true, breaks: true, renderer: renderer });
+
+  function stripFrontmatter(text) {
+    return text.replace(/^---[\s\S]*?---\n*/m, '');
+  }
+
+  function convertToHtml(md) {
+    return DOMPurify.sanitize(marked.parse(md));
+  }
+
+  // Live preview
+  let debounceTimer;
+  editor.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(render, 150);
+  });
+
+  function render() {
+    const md = stripFrontmatter(editor.value);
+    preview.innerHTML = convertToHtml(md);
+    copyBtn.disabled = !editor.value.trim();
+    statusEl.textContent = '';
+    statusEl.className = 'status';
+  }
+
+  // Copy HTML to clipboard
+  async function copyToClipboard() {
+    const md = stripFrontmatter(editor.value);
+    const html = convertToHtml(md);
+
+    try {
+      const blob = new Blob([html], { type: 'text/html' });
+      const textBlob = new Blob([md], { type: 'text/plain' });
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': blob,
+          'text/plain': textBlob,
+        })
+      ]);
+      statusEl.textContent = 'Copied!';
+      statusEl.className = 'status ok';
+    } catch (e) {
+      statusEl.textContent = 'Copy failed';
+      statusEl.className = 'status';
+      console.error(e);
+    }
+  }
+
+  function clearAll() {
+    editor.value = '';
+    preview.innerHTML = '';
+    copyBtn.disabled = true;
+    statusEl.textContent = '';
+    statusEl.className = 'status';
+  }
+
+  // Drag & drop
+  let dragCounter = 0;
+
+  document.addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    dragCounter++;
+    dropOverlay.classList.add('active');
+  });
+
+  document.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    dragCounter--;
+    if (dragCounter <= 0) {
+      dragCounter = 0;
+      dropOverlay.classList.remove('active');
+    }
+  });
+
+  document.addEventListener('dragover', (e) => e.preventDefault());
+
+  document.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dragCounter = 0;
+    dropOverlay.classList.remove('active');
+
+    const file = e.dataTransfer.files[0];
+    if (file && (file.name.endsWith('.md') || file.type === 'text/markdown' || file.type === 'text/plain')) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        editor.value = ev.target.result;
+        render();
+      };
+      reader.readAsText(file);
+    }
+  });
+
+  // Cmd+Enter to copy
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      if (!copyBtn.disabled) copyToClipboard();
+    }
+  });
+</script>
+</body>
+</html>
